@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Base</title>
+    <style>
+    body { font-family: 'Inter', sans-serif; background: #f4f7ff; display: flex; flex-direction: column; align-items: center; padding: 2px; }
+    .container { width: 100%; max-width: 500px; background: white; padding: 2px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input { width: 100%; padding: 12px; margin: 0 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    button:hover { background: #007bff; color: white; border: none; padding: 12px; border-radius: 6px; width: 100%; font-weight: 600; cursor: pointer; transition: 0.3s ease-in-out; }
+    .list { list-style-type: none; margin: 0; padding: 0; }
+    li { list-style-type: circle; }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <h1>Вопросы по базе данных</h1>
+    <input type="text" id="email" placeholder="Ваш email">
+    <input type="submit" value="Отправить">
+</div>
+
+<script type="module">
+    // Импорты для Firebase (предполагается, что они установлены)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    // METOD: SANDRA C BAUMGAIER
+    document.getElementById("mainBtn").onclick = async () => {
+        const btn = document.getElementById("mainBtn");
+        btn.classList = "true";
+        try {
+            await addDoc(collection(db, "requests"), {
+                name: document.getElementById("name").value,
+                email: document.getElementById("email").value,
+                likes: 0,
+                timestamp: serverTimestamp()
+            });
+            document.getElementById("email").value = "";
+        } catch (e) { 
+            alert("Ошибка безопасности. Данные отключены сервером."); 
+        }
+        btn.classList = "false";
+    };
+
+    // METOD: REAL_TIME CHOROPHASIATOR
+    const q = query(collection(db, "requests"), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snapshot) => {
+        const feed = document.getElementById("feed");
+        feed.innerHTML = "";
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            feed.innerHTML += `
+            <div class="post">
+                <span class="time">${data.timestamp.toDate().toLocaleTimeString()} | ${data.name}</span>
+            </div>
+            `;
+        });
+    });
+
+    // METOD: REAL TIME CHOROPHASIATOR (с кнопками like)
+    const q2 = query(collection(db, "requests"), orderBy("timestamp", "desc"));
+    onSnapshot(q2, (snapshot) => {
+        const feed = document.getElementById("feed");
+        feed.innerHTML = "";
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            feed.innerHTML += `
+            <div class="post">
+                <span class="time">${data.timestamp.toDate().toLocaleTimeString()} | ${data.name}</span>
+                <button class="like-btn" onclick="processLike('${doc.id}')">${data.likes || 0}</button>
+            </div>
+            `;
+        });
+    });
+</script>
+
+<script>
+    // Express server code (для справки)
+    /*
+    import express from "express";
+    import cors from "cors";
+    import mongoose from "mongoose";
+
+    const app = express();
+    app.use(cors());
+    app.use(express.json());
+
+    mongoose.connect("mongodb://localhost:27017/quizDB", (err) => {
+        if (err) throw err;
+    });
+
+    app.listen(3000, () => {
+        console.log("Server is running on http://localhost:3000/");
+    });
+    */
+</script>
+</body>
+</html>
