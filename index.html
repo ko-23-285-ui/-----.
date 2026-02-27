@@ -56,13 +56,22 @@
         .logout-btn:hover {
             background: #b02a37;
         }
+        .switch-account-btn {
+            background: #6c757d;
+            margin-top: 5px;
+        }
+        .switch-account-btn:hover {
+            background: #5a6268;
+        }
         .auth-section {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
         }
         .auth-section button {
             flex: 1;
+            min-width: 120px;
         }
         .user-info {
             display: flex;
@@ -324,6 +333,12 @@
             padding: 20px;
             color: #666;
         }
+        .success-message {
+            color: #28a745;
+            font-size: 14px;
+            margin: 10px 0;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -334,6 +349,7 @@
     <div id="authSection" class="auth-section">
         <button id="loginBtn">🔐 Войти через Google</button>
         <button id="logoutBtn" class="logout-btn" style="display: none;">🚪 Выйти</button>
+        <button id="switchAccountBtn" class="switch-account-btn" style="display: none;">🔄 Сменить аккаунт</button>
     </div>
 
     <div id="userInfo" class="user-info" style="display: none;">
@@ -393,7 +409,7 @@
         <h3 id="dmModalTitle">Личные сообщения</h3>
         <div id="dmMessages" class="dm-messages"></div>
         <div class="dm-input-area">
-            <input type="text" id="dmInput" placeholder="Введите сообщение...">
+            <input type="text" id="dmInput" placeholder="Введите сообщение..." autocomplete="off">
             <button id="sendMessageBtn">Отправить</button>
         </div>
     </div>
@@ -401,7 +417,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
@@ -421,9 +437,15 @@
     const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
 
+    // Настройка провайдера для выбора аккаунта
+    provider.setCustomParameters({
+        prompt: 'select_account'
+    });
+
     // Элементы интерфейса
     const loginBtn = document.getElementById('loginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const switchAccountBtn = document.getElementById('switchAccountBtn');
     const userInfo = document.getElementById('userInfo');
     const userAvatar = document.getElementById('userAvatar');
     const userEmail = document.getElementById('userEmail');
@@ -481,6 +503,7 @@
         if (user) {
             loginBtn.style.display = 'none';
             logoutBtn.style.display = 'block';
+            switchAccountBtn.style.display = 'block';
             userInfo.style.display = 'flex';
             userAvatar.src = user.photoURL || 'https://via.placeholder.com/40';
             userEmail.textContent = user.email;
@@ -499,6 +522,7 @@
         } else {
             loginBtn.style.display = 'block';
             logoutBtn.style.display = 'none';
+            switchAccountBtn.style.display = 'none';
             userInfo.style.display = 'none';
             formSection.style.display = 'none';
             guestMessage.style.display = 'block';
@@ -507,6 +531,9 @@
             // Отписываемся от слушателей
             if (unsubscribeConversations) {
                 unsubscribeConversations();
+            }
+            if (unsubscribeMessages) {
+                unsubscribeMessages();
             }
         }
     });
@@ -527,14 +554,37 @@
         }
     }
 
+    // Вход через Google
     loginBtn.addEventListener('click', async () => {
         try {
             await signInWithPopup(auth, provider);
         } catch (error) {
-            alert('Ошибка входа: ' + error.message);
+            if (error.code !== 'auth/popup-closed-by-user') {
+                alert('Ошибка входа: ' + error.message);
+            }
         }
     });
 
+    // Смена аккаунта
+    switchAccountBtn.addEventListener('click', async () => {
+        try {
+            await signOut(auth);
+            // Небольшая задержка перед входом с другим аккаунтом
+            setTimeout(async () => {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    if (error.code !== 'auth/popup-closed-by-user') {
+                        alert('Ошибка входа: ' + error.message);
+                    }
+                }
+            }, 500);
+        } catch (error) {
+            console.error('Ошибка при смене аккаунта:', error);
+        }
+    });
+
+    // Выход
     logoutBtn.addEventListener('click', async () => {
         try {
             await signOut(auth);
@@ -572,7 +622,6 @@
         const currentUserId = auth.currentUser?.uid;
         if (!currentUserId) return;
         
-        // Используем коллекцию conversations с правильной структурой
         const conversationsQuery = query(
             collection(db, "conversations"),
             where("participants", "array-contains", currentUserId),
@@ -591,7 +640,7 @@
             
             dmList.innerHTML = '';
             
-            // Собираем все ID пользователей для загрузки их данных
+            // Собираем все ID пользователей
             const userIds = new Set();
             snapshot.docs.forEach(doc => {
                 const data = doc.data();
@@ -668,7 +717,6 @@
     async function loadMessages() {
         if (!auth.currentUser || !currentChatUserId || !currentConversationId) return;
         
-        // Отписываемся от предыдущего слушателя
         if (unsubscribeMessages) {
             unsubscribeMessages();
         }
@@ -702,7 +750,6 @@
                 });
             }
             
-            // Прокрутка вниз
             dmMessages.scrollTop = dmMessages.scrollHeight;
             
             // Отмечаем сообщения как прочитанные
@@ -720,9 +767,12 @@
         const convRef = doc(db, "conversations", currentConversationId);
         
         try {
-            await updateDoc(convRef, {
-                [`unread_${auth.currentUser.uid}`]: 0
-            });
+            const convDoc = await getDoc(convRef);
+            if (convDoc.exists()) {
+                await updateDoc(convRef, {
+                    [`unread_${auth.currentUser.uid}`]: 0
+                });
+            }
         } catch (error) {
             console.error('Ошибка при отметке прочитанных:', error);
         }
@@ -731,20 +781,25 @@
     // Отправить сообщение
     async function sendMessage() {
         const text = dmInput.value.trim();
-        if (!text || !currentChatUserId || !auth.currentUser) return;
+        if (!text || !currentChatUserId || !auth.currentUser) {
+            alert('Введите сообщение');
+            return;
+        }
         
         const currentUserId = auth.currentUser.uid;
         const conversationId = currentConversationId || [currentUserId, currentChatUserId].sort().join('_');
         
         try {
             // Сохраняем сообщение
-            await addDoc(collection(db, "messages", conversationId, "chat"), {
+            const messageRef = await addDoc(collection(db, "messages", conversationId, "chat"), {
                 senderId: currentUserId,
                 receiverId: currentChatUserId,
                 text: text,
                 timestamp: serverTimestamp(),
                 read: false
             });
+            
+            console.log('Сообщение отправлено:', messageRef.id);
             
             // Обновляем диалог
             const convRef = doc(db, "conversations", conversationId);
@@ -770,26 +825,42 @@
             dmInput.value = '';
             
         } catch (error) {
-            console.error('Ошибка отправки:', error);
-            alert('Не удалось отправить сообщение');
+            console.error('Детальная ошибка отправки:', error);
+            alert('Не удалось отправить сообщение: ' + error.message);
         }
     }
 
     // Отправить новое DM
     sendDmBtn.addEventListener('click', async () => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        
         const recipientId = dmRecipient.value;
         const message = dmMessage.value.trim();
         
-        if (!recipientId || !message) {
-            alert('Выберите получателя и введите сообщение');
+        if (!recipientId) {
+            alert('Выберите получателя');
+            return;
+        }
+        
+        if (!message) {
+            alert('Введите сообщение');
             return;
         }
         
         const recipient = allUsers.find(u => u.uid === recipientId);
+        if (!recipient) {
+            alert('Получатель не найден');
+            return;
+        }
+        
         currentChatUserId = recipientId;
-        currentChatUserName = recipient?.displayName || recipient?.email || 'Пользователь';
+        currentChatUserName = recipient.displayName || recipient.email || 'Пользователь';
         currentConversationId = [auth.currentUser.uid, recipientId].sort().join('_');
         
+        // Отправляем сообщение
         dmInput.value = message;
         await sendMessage();
         
@@ -822,6 +893,8 @@
         if (unsubscribeMessages) {
             unsubscribeMessages();
         }
+        currentChatUserId = null;
+        currentConversationId = null;
     };
 
     // Отправка сообщения из модального окна
@@ -876,9 +949,11 @@
             imageUpload.value = '';
             imagePreview.style.display = 'none';
             
+            alert('Вопрос успешно отправлен!');
+            
         } catch (e) { 
             console.error('Ошибка:', e);
-            alert('Ошибка отправки вопроса'); 
+            alert('Ошибка отправки вопроса: ' + e.message); 
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = '📤 Отправить вопрос';
