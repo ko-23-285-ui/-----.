@@ -996,4 +996,132 @@
             return;
         }
 
-       
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Отправка...';
+
+        try {
+            let imageUrl = null;
+            
+            const imageFile = imageUpload.files[0];
+            if (imageFile) {
+                const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
+                await uploadBytes(storageRef, imageFile);
+                imageUrl = await getDownloadURL(storageRef);
+            }
+
+            await addDoc(collection(db, "requests"), {
+                name: name,
+                message: message,
+                imageUrl: imageUrl,
+                userId: auth.currentUser.uid,
+                userEmail: auth.currentUser.email,
+                likes: 0,
+                timestamp: serverTimestamp()
+            });
+
+            nameInput.value = '';
+            messageInput.value = '';
+            imageUpload.value = '';
+            imagePreview.style.display = 'none';
+            
+            alert('Вопрос успешно отправлен!');
+            
+        } catch (e) { 
+            console.error('Ошибка:', e);
+            alert('Ошибка отправки вопроса: ' + e.message); 
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '📤 Отправить вопрос';
+        }
+    });
+
+    // Лайки
+    window.processLike = async (docId) => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        
+        try {
+            const postRef = doc(db, "requests", docId);
+            await updateDoc(postRef, {
+                likes: increment(1)
+            });
+        } catch (error) {
+            console.error('Ошибка при лайке:', error);
+            alert('Не удалось поставить лайк');
+        }
+    };
+
+    // Открыть DM из поста
+    window.openDmFromPost = (userId, userName) => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        if (userId && userId !== auth.currentUser.uid) {
+            openChat(userId, userName);
+        }
+    };
+
+    // Загрузка постов
+    try {
+        const postsQuery = query(collection(db, "requests"), orderBy("timestamp", "desc"));
+        onSnapshot(postsQuery, (snapshot) => {
+            feed.innerHTML = "";
+            
+            if (snapshot.empty) {
+                feed.innerHTML = '<div class="loading">Нет вопросов. Будьте первым!</div>';
+                return;
+            }
+            
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                
+                let timeStr = 'Только что';
+                if (data.timestamp?.toDate) {
+                    const date = data.timestamp.toDate();
+                    timeStr = date.toLocaleString();
+                }
+
+                const postDiv = document.createElement('div');
+                postDiv.className = 'post';
+                postDiv.innerHTML = `
+                    <div class="post-header">
+                        <span class="post-author" onclick="openDmFromPost('${data.userId || ''}', '${data.name || 'Пользователь'}')">${data.name || 'Аноним'}</span>
+                        <span class="post-time">${timeStr}</span>
+                    </div>
+                    <div class="post-content">${data.message || ''}</div>
+                    ${data.imageUrl ? `<img src="${data.imageUrl}" class="post-image" alt="Post image">` : ''}
+                    <div class="post-actions">
+                        <button class="like-btn" onclick="processLike('${doc.id}')">
+                            ❤️ ${data.likes || 0}
+                        </button>
+                        ${data.userId && data.userId !== auth.currentUser?.uid ? 
+                            `<button class="dm-btn" onclick="openDmFromPost('${data.userId}', '${data.name || 'Пользователь'}')">
+                                💬 Написать
+                            </button>` : ''}
+                        <span style="color: #666; font-size: 12px;">${data.userEmail || ''}</span>
+                    </div>
+                `;
+                
+                feed.appendChild(postDiv);
+            });
+        }, (error) => {
+            console.error('Ошибка загрузки постов:', error);
+            feed.innerHTML = '<div class="error-message">Ошибка загрузки постов</div>';
+        });
+    } catch (error) {
+        console.error('Ошибка при настройке слушателя постов:', error);
+    }
+    
+    // Закрытие модального окна по клику вне его
+    window.onclick = function(event) {
+        if (event.target === dmModal) {
+            closeDmModal();
+        }
+    };
+</script>
+
+</body>
+</html>
