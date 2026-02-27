@@ -58,7 +58,6 @@
         }
         .switch-account-btn {
             background: #6c757d;
-            margin-top: 5px;
         }
         .switch-account-btn:hover {
             background: #5a6268;
@@ -92,6 +91,7 @@
             flex: 1;
             font-size: 14px;
             color: #333;
+            word-break: break-all;
         }
         .guest-message {
             color: #666;
@@ -127,6 +127,7 @@
         }
         .post-content {
             margin: 10px 0;
+            word-break: break-word;
         }
         .post-image {
             max-width: 100%;
@@ -175,12 +176,6 @@
             font-size: 24px; 
             color: #333; 
             margin-bottom: 20px; 
-        }
-        .error-message {
-            color: #dc3545;
-            font-size: 14px;
-            margin: 10px 0;
-            text-align: center;
         }
         
         /* Стили для DM */
@@ -333,11 +328,22 @@
             padding: 20px;
             color: #666;
         }
-        .success-message {
-            color: #28a745;
+        .error-message {
+            color: #dc3545;
             font-size: 14px;
             margin: 10px 0;
             text-align: center;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 8px;
+        }
+        .retry-btn {
+            background: #ffc107;
+            color: #333;
+            margin-top: 10px;
+        }
+        .retry-btn:hover {
+            background: #e0a800;
         }
     </style>
 </head>
@@ -369,12 +375,13 @@
             <div id="dmList" class="dm-list">
                 <div class="loading">Загрузка диалогов...</div>
             </div>
+            <button id="retryLoadDmBtn" class="retry-btn" style="display: none;">🔄 Повторить загрузку</button>
         </div>
         
         <!-- Форма нового сообщения -->
         <div id="newDmContainer" style="display: none;">
             <select id="dmRecipient">
-                <option value="">Выберите получателя</option>
+                <option value="">Загрузка пользователей...</option>
             </select>
             <textarea id="dmMessage" placeholder="Текст сообщения..." rows="3"></textarea>
             <button id="sendDmBtn">📨 Отправить</button>
@@ -417,7 +424,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
@@ -458,6 +465,7 @@
     const imagePreview = document.getElementById('imagePreview');
     const previewImg = document.getElementById('previewImg');
     const feed = document.getElementById('feed');
+    const retryLoadDmBtn = document.getElementById('retryLoadDmBtn');
     
     // DM элементы
     const dmSection = document.getElementById('dmSection');
@@ -482,6 +490,7 @@
     let currentConversationId = null;
     let unsubscribeMessages = null;
     let unsubscribeConversations = null;
+    let loadError = null;
 
     // Предпросмотр изображения
     imageUpload.addEventListener('change', (e) => {
@@ -501,6 +510,7 @@
     // Авторизация
     onAuthStateChanged(auth, async (user) => {
         if (user) {
+            console.log('Пользователь вошел:', user.email);
             loginBtn.style.display = 'none';
             logoutBtn.style.display = 'block';
             switchAccountBtn.style.display = 'block';
@@ -518,8 +528,9 @@
             // Сохраняем пользователя в базу
             await saveUserToFirestore(user);
             await loadAllUsers();
-            await loadConversations();
+            loadConversations();
         } else {
+            console.log('Пользователь вышел');
             loginBtn.style.display = 'block';
             logoutBtn.style.display = 'none';
             switchAccountBtn.style.display = 'none';
@@ -549,6 +560,7 @@
                 photoURL: user.photoURL,
                 lastSeen: serverTimestamp()
             }, { merge: true });
+            console.log('Пользователь сохранен в Firestore');
         } catch (error) {
             console.error('Ошибка сохранения пользователя:', error);
         }
@@ -569,7 +581,6 @@
     switchAccountBtn.addEventListener('click', async () => {
         try {
             await signOut(auth);
-            // Небольшая задержка перед входом с другим аккаунтом
             setTimeout(async () => {
                 try {
                     await signInWithPopup(auth, provider);
@@ -612,8 +623,11 @@
                     dmRecipient.innerHTML += `<option value="${doc.id}">${userData.displayName || userData.email}</option>`;
                 }
             });
+            
+            console.log('Загружено пользователей:', allUsers.length);
         } catch (error) {
             console.error('Ошибка загрузки пользователей:', error);
+            dmRecipient.innerHTML = '<option value="">Ошибка загрузки</option>';
         }
     }
 
@@ -621,6 +635,8 @@
     function loadConversations() {
         const currentUserId = auth.currentUser?.uid;
         if (!currentUserId) return;
+        
+        console.log('Загрузка диалогов для пользователя:', currentUserId);
         
         const conversationsQuery = query(
             collection(db, "conversations"),
@@ -633,12 +649,16 @@
         }
         
         unsubscribeConversations = onSnapshot(conversationsQuery, async (snapshot) => {
+            console.log('Получены диалоги:', snapshot.size);
+            
             if (snapshot.empty) {
                 dmList.innerHTML = '<div class="loading">Нет диалогов. Начните общение!</div>';
+                retryLoadDmBtn.style.display = 'none';
                 return;
             }
             
             dmList.innerHTML = '';
+            retryLoadDmBtn.style.display = 'none';
             
             // Собираем все ID пользователей
             const userIds = new Set();
@@ -653,13 +673,13 @@
             
             // Загружаем данные пользователей
             const userPromises = Array.from(userIds).map(id => 
-                getDoc(doc(db, "users", id))
+                getDoc(doc(db, "users", id)).catch(() => null)
             );
             const userSnapshots = await Promise.all(userPromises);
             
             const userMap = {};
             userSnapshots.forEach(snap => {
-                if (snap.exists()) {
+                if (snap && snap.exists()) {
                     userMap[snap.id] = snap.data();
                 }
             });
@@ -694,9 +714,17 @@
             });
         }, (error) => {
             console.error('Ошибка загрузки диалогов:', error);
-            dmList.innerHTML = '<div class="loading">Ошибка загрузки диалогов</div>';
+            dmList.innerHTML = '<div class="error-message">Ошибка загрузки диалогов. Проверьте правила Firebase.</div>';
+            retryLoadDmBtn.style.display = 'block';
         });
     }
+
+    // Повторная загрузка диалогов
+    retryLoadDmBtn.addEventListener('click', () => {
+        dmList.innerHTML = '<div class="loading">Загрузка диалогов...</div>';
+        retryLoadDmBtn.style.display = 'none';
+        loadConversations();
+    });
 
     // Открыть чат
     async function openChat(userId, userName) {
@@ -756,7 +784,7 @@
             await markMessagesAsRead();
         }, (error) => {
             console.error('Ошибка загрузки сообщений:', error);
-            dmMessages.innerHTML = '<div style="text-align: center; color: #666;">Ошибка загрузки сообщений</div>';
+            dmMessages.innerHTML = '<div class="error-message">Ошибка загрузки сообщений</div>';
         });
     }
 
@@ -961,85 +989,4 @@
     });
 
     // Лайки
-    window.processLike = async (docId) => {
-        if (!auth.currentUser) {
-            alert('Необходимо войти в систему');
-            return;
-        }
-        
-        try {
-            const postRef = doc(db, "requests", docId);
-            await updateDoc(postRef, {
-                likes: increment(1)
-            });
-        } catch (error) {
-            console.error('Ошибка при лайке:', error);
-            alert('Не удалось поставить лайк');
-        }
-    };
-
-    // Открыть DM из поста
-    window.openDmFromPost = (userId, userName) => {
-        if (!auth.currentUser) {
-            alert('Необходимо войти в систему');
-            return;
-        }
-        if (userId && userId !== auth.currentUser.uid) {
-            openChat(userId, userName);
-        }
-    };
-
-    // Загрузка постов
-    const postsQuery = query(collection(db, "requests"), orderBy("timestamp", "desc"));
-    onSnapshot(postsQuery, (snapshot) => {
-        feed.innerHTML = "";
-        
-        if (snapshot.empty) {
-            feed.innerHTML = '<div class="loading">Нет вопросов. Будьте первым!</div>';
-            return;
-        }
-        
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            
-            let timeStr = 'Только что';
-            if (data.timestamp?.toDate) {
-                const date = data.timestamp.toDate();
-                timeStr = date.toLocaleString();
-            }
-
-            const postDiv = document.createElement('div');
-            postDiv.className = 'post';
-            postDiv.innerHTML = `
-                <div class="post-header">
-                    <span class="post-author" onclick="openDmFromPost('${data.userId || ''}', '${data.name || 'Пользователь'}')">${data.name || 'Аноним'}</span>
-                    <span class="post-time">${timeStr}</span>
-                </div>
-                <div class="post-content">${data.message || ''}</div>
-                ${data.imageUrl ? `<img src="${data.imageUrl}" class="post-image" alt="Post image">` : ''}
-                <div class="post-actions">
-                    <button class="like-btn" onclick="processLike('${doc.id}')">
-                        ❤️ ${data.likes || 0}
-                    </button>
-                    ${data.userId && data.userId !== auth.currentUser?.uid ? 
-                        `<button class="dm-btn" onclick="openDmFromPost('${data.userId}', '${data.name || 'Пользователь'}')">
-                            💬 Написать
-                        </button>` : ''}
-                    <span style="color: #666; font-size: 12px;">${data.userEmail || ''}</span>
-                </div>
-            `;
-            
-            feed.appendChild(postDiv);
-        });
-    });
-    
-    // Закрытие модального окна по клику вне его
-    window.onclick = function(event) {
-        if (event.target === dmModal) {
-            closeDmModal();
-        }
-    };
-</script>
-
-</body>
-</html>
+    window
