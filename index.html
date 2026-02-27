@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Base с авторизацией</title>
+    <title>Base с авторизацией и DM</title>
     <style>
         body { 
             font-family: 'Inter', sans-serif; 
@@ -21,6 +21,15 @@
             border-radius: 12px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
         }
+        input, textarea, select { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 8px 0; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 14px;
+        }
         button { 
             background: #007bff; 
             color: white; 
@@ -37,6 +46,22 @@
         button:hover { 
             background: #0056b3; 
         }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .logout-btn {
+            background: #dc3545;
+        }
+        .logout-btn:hover {
+            background: #b02a37;
+        }
+        .switch-account-btn {
+            background: #6c757d;
+        }
+        .switch-account-btn:hover {
+            background: #5a6268;
+        }
         .google-btn {
             background: #fff;
             color: #333;
@@ -52,6 +77,272 @@
         .google-btn img {
             width: 20px;
             height: 20px;
+        }
+        .auth-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .auth-section button {
+            flex: 1;
+            min-width: 120px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .user-email {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+            word-break: break-all;
+        }
+        .guest-message {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        .form-section {
+            transition: all 0.3s;
+        }
+        .post { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 10px 0; 
+        }
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .post-author {
+            font-weight: 600;
+            color: #007bff;
+            cursor: pointer;
+        }
+        .post-author:hover {
+            text-decoration: underline;
+        }
+        .post-time { 
+            color: #666; 
+            font-size: 12px; 
+        }
+        .post-content {
+            margin: 10px 0;
+            word-break: break-word;
+        }
+        .post-image {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .post-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .like-btn { 
+            background: none; 
+            color: #666; 
+            border: 1px solid #ddd; 
+            padding: 5px 15px; 
+            width: auto; 
+            border-radius: 20px; 
+            font-size: 13px;
+        }
+        .like-btn:hover { 
+            background: #e3f2fd; 
+            color: #1976d2; 
+        }
+        .dm-btn {
+            background: none;
+            color: #28a745;
+            border: 1px solid #28a745;
+            padding: 5px 15px;
+            width: auto;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        .dm-btn:hover {
+            background: #28a745;
+            color: white;
+        }
+        .list { 
+            list-style-type: none; 
+            margin: 20px 0 0; 
+            padding: 0; 
+        }
+        h1 { 
+            font-size: 24px; 
+            color: #333; 
+            margin-bottom: 20px; 
+        }
+        
+        /* Стили для DM */
+        .dm-section {
+            margin: 20px 0;
+            border-top: 2px solid #e0e0e0;
+            padding-top: 20px;
+        }
+        .dm-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .dm-tab {
+            flex: 1;
+            background: #f0f0f0;
+            color: #333;
+        }
+        .dm-tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .dm-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .dm-item {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .dm-item:hover {
+            background: #f0f0f0;
+        }
+        .dm-item.unread {
+            background: #e3f2fd;
+            font-weight: 600;
+        }
+        .dm-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .dm-sender {
+            font-weight: 600;
+            color: #007bff;
+        }
+        .dm-preview {
+            color: #666;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dm-time {
+            color: #999;
+            font-size: 11px;
+        }
+        .dm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .dm-modal-content {
+            position: relative;
+            background: white;
+            width: 90%;
+            max-width: 500px;
+            margin: 50px auto;
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .dm-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .dm-close:hover {
+            color: #333;
+        }
+        .dm-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .dm-message {
+            margin: 5px 0;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .dm-message.sent {
+            background: #007bff;
+            color: white;
+            align-self: flex-end;
+        }
+        .dm-message.received {
+            background: #f0f0f0;
+            color: #333;
+            align-self: flex-start;
+        }
+        .dm-message-time {
+            font-size: 10px;
+            color: #999;
+            margin-top: 2px;
+            text-align: right;
+        }
+        .dm-input-area {
+            display: flex;
+            gap: 10px;
+        }
+        .dm-input-area input {
+            flex: 1;
+            margin: 0;
+        }
+        .dm-input-area button {
+            width: auto;
+            padding: 12px 20px;
+        }
+        .unread-badge {
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
         }
         .error-message {
             color: #dc3545;
@@ -71,33 +362,29 @@
             background: #d4edda;
             border-radius: 8px;
         }
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 15px 0;
+        .debug-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 20px;
             padding: 10px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            border-top: 1px solid #ddd;
         }
     </style>
 </head>
+
 <body>
 <div class="container">
-    <h1>📝 Тест входа через Google</h1>
+    <h1>📝 Вопросы и личные сообщения</h1>
     
-    <button id="googleLoginBtn" class="google-btn">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-        Войти через Google
-    </button>
-    
-    <button id="logoutBtn" style="display: none; background: #dc3545;">Выйти</button>
-    
+    <div id="authSection" class="auth-section">
+        <button id="loginBtn" class="google-btn">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+            Войти через Google
+        </button>
+        <button id="logoutBtn" class="logout-btn" style="display: none;">🚪 Выйти</button>
+        <button id="switchAccountBtn" class="switch-account-btn" style="display: none;">🔄 Сменить аккаунт</button>
+    </div>
+
     <div id="userInfo" class="user-info" style="display: none;">
         <img id="userAvatar" class="user-avatar" src="" alt="Avatar">
         <div>
@@ -105,19 +392,80 @@
             <div id="userEmail" style="color: #666; font-size: 12px;"></div>
         </div>
     </div>
+
+    <!-- DM Секция -->
+    <div id="dmSection" class="dm-section" style="display: none;">
+        <div class="dm-tabs">
+            <button id="dmListTab" class="dm-tab active">📬 Диалоги</button>
+            <button id="newDmTab" class="dm-tab">✉️ Новое сообщение</button>
+        </div>
+        
+        <!-- Список диалогов -->
+        <div id="dmListContainer">
+            <div id="dmList" class="dm-list">
+                <div class="loading">Загрузка диалогов...</div>
+            </div>
+            <div id="dmError" class="error-message" style="display: none;"></div>
+        </div>
+        
+        <!-- Форма нового сообщения -->
+        <div id="newDmContainer" style="display: none;">
+            <select id="dmRecipient">
+                <option value="">Загрузка пользователей...</option>
+            </select>
+            <textarea id="dmMessage" placeholder="Текст сообщения..." rows="3"></textarea>
+            <button id="sendDmBtn">📨 Отправить</button>
+        </div>
+    </div>
+
+    <!-- Форма для вопросов -->
+    <div id="formSection" class="form-section" style="display: none;">
+        <input type="text" id="name" placeholder="Ваше имя" required>
+        <textarea id="message" placeholder="Ваш вопрос" rows="3" required></textarea>
+        
+        <input type="file" id="imageUpload" accept="image/*">
+        <div id="imagePreview" style="margin: 10px 0; display: none;">
+            <img id="previewImg" style="max-width: 100%; max-height: 150px; border-radius: 8px;">
+        </div>
+        
+        <button id="submitBtn">📤 Отправить вопрос</button>
+    </div>
+
+    <div id="guestMessage" class="guest-message" style="display: none;">
+        👋 Пожалуйста, войдите через Google, чтобы задать вопрос
+    </div>
+
+    <!-- Лента постов -->
+    <div id="feed" class="list"></div>
     
-    <div id="errorMessage" class="error-message" style="display: none;"></div>
-    <div id="successMessage" class="success-message" style="display: none;"></div>
-    
-    <div id="debugInfo" style="margin-top: 20px; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 10px;">
+    <!-- Отладочная информация -->
+    <div class="debug-info">
         <div>Статус: <span id="authStatus">Не авторизован</span></div>
         <div>Домен: <span id="currentDomain"></span></div>
     </div>
 </div>
 
+<!-- Модальное окно для DM -->
+<div id="dmModal" class="dm-modal">
+    <div class="dm-modal-content">
+        <span class="dm-close" onclick="closeDmModal()">&times;</span>
+        <h3 id="dmModalTitle">Личные сообщения</h3>
+        <div id="dmMessages" class="dm-messages">
+            <div class="loading">Загрузка сообщений...</div>
+        </div>
+        <div class="dm-input-area">
+            <input type="text" id="dmInput" placeholder="Введите сообщение..." autocomplete="off">
+            <button id="sendMessageBtn">Отправить</button>
+        </div>
+        <div id="dmChatError" class="error-message" style="display: none;"></div>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyDo12JNv3DE4-mI9kLt3zjUUzFAWfVN_9w",
@@ -131,143 +479,668 @@
 
     // Инициализация Firebase
     const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
     const auth = getAuth(app);
-    
-    // Настройка провайдера Google
+    const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
     
-    // Добавляем дополнительные параметры для выбора аккаунта
+    // Настройка провайдера для выбора аккаунта
     provider.setCustomParameters({
         prompt: 'select_account'
     });
 
-    // Элементы DOM
-    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    // Элементы интерфейса
+    const loginBtn = document.getElementById('loginBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const switchAccountBtn = document.getElementById('switchAccountBtn');
     const userInfo = document.getElementById('userInfo');
     const userAvatar = document.getElementById('userAvatar');
     const userName = document.getElementById('userName');
     const userEmail = document.getElementById('userEmail');
-    const errorMessage = document.getElementById('errorMessage');
-    const successMessage = document.getElementById('successMessage');
+    const formSection = document.getElementById('formSection');
+    const guestMessage = document.getElementById('guestMessage');
+    const submitBtn = document.getElementById('submitBtn');
+    const nameInput = document.getElementById('name');
+    const messageInput = document.getElementById('message');
+    const imageUpload = document.getElementById('imageUpload');
+    const imagePreview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const feed = document.getElementById('feed');
     const authStatus = document.getElementById('authStatus');
     const currentDomain = document.getElementById('currentDomain');
+    
+    // DM элементы
+    const dmSection = document.getElementById('dmSection');
+    const dmListTab = document.getElementById('dmListTab');
+    const newDmTab = document.getElementById('newDmTab');
+    const dmListContainer = document.getElementById('dmListContainer');
+    const newDmContainer = document.getElementById('newDmContainer');
+    const dmList = document.getElementById('dmList');
+    const dmRecipient = document.getElementById('dmRecipient');
+    const dmMessage = document.getElementById('dmMessage');
+    const sendDmBtn = document.getElementById('sendDmBtn');
+    const dmModal = document.getElementById('dmModal');
+    const dmModalTitle = document.getElementById('dmModalTitle');
+    const dmMessages = document.getElementById('dmMessages');
+    const dmInput = document.getElementById('dmInput');
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    const dmError = document.getElementById('dmError');
+    const dmChatError = document.getElementById('dmChatError');
 
     // Показываем текущий домен
     currentDomain.textContent = window.location.origin;
 
-    // Функция для показа ошибки
-    function showError(text) {
-        console.error('Ошибка:', text);
-        errorMessage.textContent = text;
-        errorMessage.style.display = 'block';
-        setTimeout(() => {
-            errorMessage.style.display = 'none';
-        }, 5000);
-    }
+    // Состояние DM
+    let currentChatUserId = null;
+    let currentChatUserName = null;
+    let allUsers = [];
+    let currentConversationId = null;
+    let unsubscribeMessages = null;
+    let unsubscribeConversations = null;
 
-    // Функция для показа успеха
-    function showSuccess(text) {
-        successMessage.textContent = text;
-        successMessage.style.display = 'block';
-        setTimeout(() => {
-            successMessage.style.display = 'none';
-        }, 3000);
-    }
+    // Предпросмотр изображения
+    imageUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                imagePreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            imagePreview.style.display = 'none';
+        }
+    });
 
-    // Обработчик изменения состояния аутентификации
-    onAuthStateChanged(auth, (user) => {
+    // Авторизация
+    onAuthStateChanged(auth, async (user) => {
         if (user) {
-            console.log('Пользователь вошел:', user);
-            authStatus.textContent = 'Авторизован как ' + user.email;
+            console.log('✅ Пользователь вошел:', user.email);
+            authStatus.textContent = `Авторизован как ${user.email}`;
             
-            googleLoginBtn.style.display = 'none';
+            loginBtn.style.display = 'none';
             logoutBtn.style.display = 'block';
+            switchAccountBtn.style.display = 'block';
             userInfo.style.display = 'flex';
-            
             userAvatar.src = user.photoURL || 'https://via.placeholder.com/40';
             userName.textContent = user.displayName || 'Пользователь';
             userEmail.textContent = user.email;
+            formSection.style.display = 'block';
+            guestMessage.style.display = 'none';
+            dmSection.style.display = 'block';
             
-            showSuccess('Вход выполнен успешно!');
-        } else {
-            console.log('Пользователь вышел');
-            authStatus.textContent = 'Не авторизован';
-            
-            googleLoginBtn.style.display = 'block';
-            logoutBtn.style.display = 'none';
-            userInfo.style.display = 'none';
-        }
-    });
-
-    // Обработчик входа через Google
-    googleLoginBtn.addEventListener('click', async () => {
-        try {
-            console.log('Начинаем вход через Google...');
-            errorMessage.style.display = 'none';
-            
-            // Пробуем войти через popup
-            const result = await signInWithPopup(auth, provider);
-            
-            console.log('Результат входа:', result);
-            showSuccess('Вход выполнен!');
-            
-        } catch (error) {
-            console.error('Детальная ошибка входа:', error);
-            
-            // Обработка различных ошибок
-            let errorText = 'Ошибка входа: ';
-            
-            switch (error.code) {
-                case 'auth/popup-blocked':
-                    errorText += 'Всплывающее окно заблокировано. Разрешите всплывающие окна для этого сайта.';
-                    break;
-                case 'auth/popup-closed-by-user':
-                    errorText += 'Окно входа было закрыто. Попробуйте снова.';
-                    break;
-                case 'auth/cancelled-popup-request':
-                    errorText += 'Запрос отменен.';
-                    break;
-                case 'auth/unauthorized-domain':
-                    errorText += 'Этот домен не авторизован. Добавьте ' + window.location.origin + ' в Firebase Console.';
-                    break;
-                case 'auth/operation-not-allowed':
-                    errorText += 'Вход через Google не включен в Firebase Console.';
-                    break;
-                default:
-                    errorText += error.message;
+            if (!nameInput.value) {
+                nameInput.value = user.displayName || 'Пользователь';
             }
             
-            showError(errorText);
+            // Сохраняем пользователя в базу
+            await saveUserToFirestore(user);
+            await loadAllUsers();
+            loadConversations();
+        } else {
+            console.log('👤 Пользователь вышел');
+            authStatus.textContent = 'Не авторизован';
+            
+            loginBtn.style.display = 'block';
+            logoutBtn.style.display = 'none';
+            switchAccountBtn.style.display = 'none';
+            userInfo.style.display = 'none';
+            formSection.style.display = 'none';
+            guestMessage.style.display = 'block';
+            dmSection.style.display = 'none';
+            
+            // Отписываемся от слушателей
+            if (unsubscribeConversations) {
+                unsubscribeConversations();
+            }
+            if (unsubscribeMessages) {
+                unsubscribeMessages();
+            }
         }
     });
 
-    // Обработчик выхода
+    // Сохранение пользователя в Firestore
+    async function saveUserToFirestore(user) {
+        try {
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || 'Пользователь',
+                photoURL: user.photoURL,
+                lastSeen: serverTimestamp()
+            }, { merge: true });
+            console.log('✅ Пользователь сохранен в Firestore');
+        } catch (error) {
+            console.error('❌ Ошибка сохранения пользователя:', error);
+        }
+    }
+
+    // Вход через Google
+    loginBtn.addEventListener('click', async () => {
+        try {
+            console.log('🔄 Начинаем вход через Google...');
+            const result = await signInWithPopup(auth, provider);
+            console.log('✅ Вход выполнен:', result.user.email);
+        } catch (error) {
+            console.error('❌ Ошибка входа:', error);
+            
+            let errorMessage = 'Ошибка входа: ';
+            if (error.code === 'auth/popup-blocked') {
+                errorMessage += 'Всплывающее окно заблокировано. Разрешите всплывающие окна.';
+            } else if (error.code === 'auth/popup-closed-by-user') {
+                errorMessage += 'Окно входа было закрыто.';
+            } else if (error.code === 'auth/unauthorized-domain') {
+                errorMessage += 'Домен не авторизован. Добавьте ' + window.location.origin + ' в Firebase Console.';
+            } else {
+                errorMessage += error.message;
+            }
+            
+            alert(errorMessage);
+        }
+    });
+
+    // Смена аккаунта
+    switchAccountBtn.addEventListener('click', async () => {
+        try {
+            await signOut(auth);
+            setTimeout(async () => {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error('Ошибка входа:', error);
+                }
+            }, 500);
+        } catch (error) {
+            console.error('Ошибка при смене аккаунта:', error);
+        }
+    });
+
+    // Выход
     logoutBtn.addEventListener('click', async () => {
         try {
             await signOut(auth);
-            showSuccess('Выход выполнен');
         } catch (error) {
-            showError('Ошибка выхода: ' + error.message);
+            alert('Ошибка выхода: ' + error.message);
         }
     });
-    
-    // Альтернативный метод входа через redirect (если popup не работает)
-    async function loginWithRedirect() {
+
+    // Загрузка всех пользователей
+    async function loadAllUsers() {
         try {
-            await signInWithRedirect(auth, provider);
+            const usersQuery = query(collection(db, "users"));
+            const usersSnapshot = await getDocs(usersQuery);
+            
+            allUsers = [];
+            dmRecipient.innerHTML = '<option value="">Выберите получателя</option>';
+            
+            usersSnapshot.forEach((doc) => {
+                const userData = doc.data();
+                if (doc.id !== auth.currentUser?.uid) {
+                    allUsers.push({
+                        uid: doc.id,
+                        ...userData
+                    });
+                    dmRecipient.innerHTML += `<option value="${doc.id}">${userData.displayName || userData.email}</option>`;
+                }
+            });
+            
+            console.log('✅ Загружено пользователей:', allUsers.length);
         } catch (error) {
-            showError('Ошибка входа через redirect: ' + error.message);
+            console.error('❌ Ошибка загрузки пользователей:', error);
+            dmRecipient.innerHTML = '<option value="">Ошибка загрузки</option>';
         }
     }
+
+    // Загрузка диалогов
+    function loadConversations() {
+        const currentUserId = auth.currentUser?.uid;
+        if (!currentUserId) return;
+        
+        console.log('🔄 Загрузка диалогов для пользователя:', currentUserId);
+        
+        dmError.style.display = 'none';
+        dmList.innerHTML = '<div class="loading">Загрузка диалогов...</div>';
+        
+        const conversationsQuery = query(
+            collection(db, "conversations"),
+            where("participants", "array-contains", currentUserId),
+            orderBy("lastMessageTime", "desc")
+        );
+        
+        if (unsubscribeConversations) {
+            unsubscribeConversations();
+        }
+        
+        unsubscribeConversations = onSnapshot(conversationsQuery, async (snapshot) => {
+            console.log('📨 Получены диалоги:', snapshot.size);
+            
+            if (snapshot.empty) {
+                dmList.innerHTML = '<div class="loading">Нет диалогов. Начните общение!</div>';
+                return;
+            }
+            
+            dmList.innerHTML = '';
+            
+            // Собираем все ID пользователей
+            const userIds = new Set();
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                data.participants.forEach(id => {
+                    if (id !== currentUserId) {
+                        userIds.add(id);
+                    }
+                });
+            });
+            
+            // Загружаем данные пользователей
+            const userPromises = Array.from(userIds).map(async (id) => {
+                try {
+                    const userDoc = await getDoc(doc(db, "users", id));
+                    return { id, data: userDoc.exists() ? userDoc.data() : null };
+                } catch (error) {
+                    console.error(`Ошибка загрузки пользователя ${id}:`, error);
+                    return { id, data: null };
+                }
+            });
+            
+            const userResults = await Promise.all(userPromises);
+            const userMap = {};
+            userResults.forEach(({ id, data }) => {
+                if (data) {
+                    userMap[id] = data;
+                }
+            });
+            
+            // Отображаем диалоги
+            snapshot.forEach((doc) => {
+                const convData = doc.data();
+                const otherUserId = convData.participants.find(id => id !== currentUserId);
+                const otherUser = userMap[otherUserId] || { displayName: 'Пользователь', email: '' };
+                
+                const timeStr = convData.lastMessageTime?.toDate ? 
+                    convData.lastMessageTime.toDate().toLocaleString() : '';
+                
+                const unreadCount = convData[`unread_${currentUserId}`] || 0;
+                
+                const dmItem = document.createElement('div');
+                dmItem.className = `dm-item ${unreadCount > 0 ? 'unread' : ''}`;
+                dmItem.onclick = () => openChat(otherUserId, otherUser.displayName || otherUser.email);
+                
+                dmItem.innerHTML = `
+                    <div class="dm-header">
+                        <span class="dm-sender">${otherUser.displayName || otherUser.email}</span>
+                        <span class="dm-time">${timeStr}</span>
+                    </div>
+                    <div class="dm-preview">
+                        ${convData.lastMessage || 'Нет сообщений'}
+                        ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
+                    </div>
+                `;
+                
+                dmList.appendChild(dmItem);
+            });
+        }, (error) => {
+            console.error('❌ Ошибка загрузки диалогов:', error);
+            dmList.innerHTML = '';
+            dmError.style.display = 'block';
+            dmError.textContent = 'Ошибка загрузки диалогов: ' + error.message;
+        });
+    }
+
+    // Открыть чат
+    async function openChat(userId, userName) {
+        if (!auth.currentUser) return;
+        
+        currentChatUserId = userId;
+        currentChatUserName = userName;
+        currentConversationId = [auth.currentUser.uid, userId].sort().join('_');
+        
+        dmModalTitle.textContent = `Чат с ${userName}`;
+        dmModal.style.display = 'block';
+        dmMessages.innerHTML = '<div class="loading">Загрузка сообщений...</div>';
+        dmChatError.style.display = 'none';
+        
+        await loadMessages();
+    }
+
+    // Загрузка сообщений
+    async function loadMessages() {
+        if (!auth.currentUser || !currentChatUserId || !currentConversationId) return;
+        
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+        }
+        
+        const messagesQuery = query(
+            collection(db, "messages", currentConversationId, "chat"),
+            orderBy("timestamp", "asc"),
+            limit(100)
+        );
+        
+        unsubscribeMessages = onSnapshot(messagesQuery, async (snapshot) => {
+            dmMessages.innerHTML = '';
+            dmChatError.style.display = 'none';
+            
+            if (snapshot.empty) {
+                dmMessages.innerHTML = '<div style="text-align: center; color: #666;">Нет сообщений. Напишите что-нибудь!</div>';
+            } else {
+                snapshot.forEach((doc) => {
+                    const msg = doc.data();
+                    const messageClass = msg.senderId === auth.currentUser?.uid ? 'sent' : 'received';
+                    const timeStr = msg.timestamp?.toDate ? 
+                        msg.timestamp.toDate().toLocaleString() : '';
+                    
+                    const messageEl = document.createElement('div');
+                    messageEl.className = `dm-message ${messageClass}`;
+                    messageEl.innerHTML = `
+                        <div>${msg.text}</div>
+                        <div class="dm-message-time">${timeStr}</div>
+                    `;
+                    
+                    dmMessages.appendChild(messageEl);
+                });
+            }
+            
+            dmMessages.scrollTop = dmMessages.scrollHeight;
+            
+            // Отмечаем сообщения как прочитанные
+            await markMessagesAsRead();
+        }, (error) => {
+            console.error('❌ Ошибка загрузки сообщений:', error);
+            dmMessages.innerHTML = '';
+            dmChatError.style.display = 'block';
+            dmChatError.textContent = 'Ошибка загрузки сообщений: ' + error.message;
+        });
+    }
+
+    // Отметить сообщения как прочитанные
+    async function markMessagesAsRead() {
+        if (!auth.currentUser || !currentConversationId) return;
+        
+        const convRef = doc(db, "conversations", currentConversationId);
+        
+        try {
+            const convDoc = await getDoc(convRef);
+            if (convDoc.exists()) {
+                await updateDoc(convRef, {
+                    [`unread_${auth.currentUser.uid}`]: 0
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка при отметке прочитанных:', error);
+        }
+    }
+
+    // Отправить сообщение
+    async function sendMessage() {
+        const text = dmInput.value.trim();
+        if (!text || !currentChatUserId || !auth.currentUser) {
+            alert('Введите сообщение');
+            return;
+        }
+        
+        const currentUserId = auth.currentUser.uid;
+        const conversationId = currentConversationId || [currentUserId, currentChatUserId].sort().join('_');
+        
+        try {
+            console.log('📤 Отправка сообщения:', { text, to: currentChatUserId });
+            
+            // Сохраняем сообщение
+            const messageRef = await addDoc(collection(db, "messages", conversationId, "chat"), {
+                senderId: currentUserId,
+                receiverId: currentChatUserId,
+                text: text,
+                timestamp: serverTimestamp(),
+                read: false
+            });
+            
+            console.log('✅ Сообщение отправлено, ID:', messageRef.id);
+            
+            // Обновляем диалог
+            const convRef = doc(db, "conversations", conversationId);
+            const convDoc = await getDoc(convRef);
+            
+            if (convDoc.exists()) {
+                await updateDoc(convRef, {
+                    lastMessage: text,
+                    lastMessageTime: serverTimestamp(),
+                    [`unread_${currentChatUserId}`]: increment(1)
+                });
+            } else {
+                await setDoc(convRef, {
+                    participants: [currentUserId, currentChatUserId],
+                    lastMessage: text,
+                    lastMessageTime: serverTimestamp(),
+                    [`unread_${currentUserId}`]: 0,
+                    [`unread_${currentChatUserId}`]: 1,
+                    createdAt: serverTimestamp()
+                });
+            }
+            
+            dmInput.value = '';
+            
+        } catch (error) {
+            console.error('❌ Ошибка отправки:', error);
+            alert('Не удалось отправить сообщение: ' + error.message);
+        }
+    }
+
+    // Отправить новое DM
+    sendDmBtn.addEventListener('click', async () => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        
+        const recipientId = dmRecipient.value;
+        const message = dmMessage.value.trim();
+        
+        if (!recipientId) {
+            alert('Выберите получателя');
+            return;
+        }
+        
+        if (!message) {
+            alert('Введите сообщение');
+            return;
+        }
+        
+        const recipient = allUsers.find(u => u.uid === recipientId);
+        if (!recipient) {
+            alert('Получатель не найден');
+            return;
+        }
+        
+        currentChatUserId = recipientId;
+        currentChatUserName = recipient.displayName || recipient.email || 'Пользователь';
+        currentConversationId = [auth.currentUser.uid, recipientId].sort().join('_');
+        
+        dmInput.value = message;
+        await sendMessage();
+        
+        dmMessage.value = '';
+        dmRecipient.value = '';
+        
+        dmListTab.click();
+        openChat(currentChatUserId, currentChatUserName);
+    });
+
+    // Переключение вкладок DM
+    dmListTab.addEventListener('click', () => {
+        dmListTab.classList.add('active');
+        newDmTab.classList.remove('active');
+        dmListContainer.style.display = 'block';
+        newDmContainer.style.display = 'none';
+    });
+
+    newDmTab.addEventListener('click', () => {
+        newDmTab.classList.add('active');
+        dmListTab.classList.remove('active');
+        dmListContainer.style.display = 'none';
+        newDmContainer.style.display = 'block';
+    });
+
+    // Закрыть модальное окно
+    window.closeDmModal = function() {
+        dmModal.style.display = 'none';
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+        }
+        currentChatUserId = null;
+        currentConversationId = null;
+    };
+
+    // Отправка сообщения из модального окна
+    sendMessageBtn.addEventListener('click', sendMessage);
+    dmInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // Отправка вопроса
+    submitBtn.addEventListener('click', async () => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+
+        const name = nameInput.value.trim();
+        const message = messageInput.value.trim();
+        
+        if (!name || !message) {
+            alert('Заполните имя и вопрос');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Отправка...';
+
+        try {
+            let imageUrl = null;
+            
+            const imageFile = imageUpload.files[0];
+            if (imageFile) {
+                const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
+                await uploadBytes(storageRef, imageFile);
+                imageUrl = await getDownloadURL(storageRef);
+            }
+
+            await addDoc(collection(db, "requests"), {
+                name: name,
+                message: message,
+                imageUrl: imageUrl,
+                userId: auth.currentUser.uid,
+                userEmail: auth.currentUser.email,
+                likes: 0,
+                timestamp: serverTimestamp()
+            });
+
+            nameInput.value = '';
+            messageInput.value = '';
+            imageUpload.value = '';
+            imagePreview.style.display = 'none';
+            
+            alert('✅ Вопрос успешно отправлен!');
+            
+        } catch (e) { 
+            console.error('❌ Ошибка:', e);
+            alert('Ошибка отправки вопроса: ' + e.message); 
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '📤 Отправить вопрос';
+        }
+    });
+
+    // Лайки
+    window.processLike = async (docId) => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        
+        try {
+            const postRef = doc(db, "requests", docId);
+            await updateDoc(postRef, {
+                likes: increment(1)
+            });
+        } catch (error) {
+            console.error('Ошибка при лайке:', error);
+            alert('Не удалось поставить лайк');
+        }
+    };
+
+    // Открыть DM из поста
+    window.openDmFromPost = (userId, userName) => {
+        if (!auth.currentUser) {
+            alert('Необходимо войти в систему');
+            return;
+        }
+        if (userId && userId !== auth.currentUser.uid) {
+            openChat(userId, userName);
+        }
+    };
+
+    // Загрузка постов
+    try {
+        const postsQuery = query(collection(db, "requests"), orderBy("timestamp", "desc"));
+        onSnapshot(postsQuery, (snapshot) => {
+            feed.innerHTML = "";
+            
+            if (snapshot.empty) {
+                feed.innerHTML = '<div class="loading">Нет вопросов. Будьте первым!</div>';
+                return;
+            }
+            
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                
+                let timeStr = 'Только что';
+                if (data.timestamp?.toDate) {
+                    const date = data.timestamp.toDate();
+                    timeStr = date.toLocaleString();
+                }
+
+                const postDiv = document.createElement('div');
+                postDiv.className = 'post';
+                postDiv.innerHTML = `
+                    <div class="post-header">
+                        <span class="post-author" onclick="openDmFromPost('${data.userId || ''}', '${data.name || 'Пользователь'}')">${data.name || 'Аноним'}</span>
+                        <span class="post-time">${timeStr}</span>
+                    </div>
+                    <div class="post-content">${data.message || ''}</div>
+                    ${data.imageUrl ? `<img src="${data.imageUrl}" class="post-image" alt="Post image">` : ''}
+                    <div class="post-actions">
+                        <button class="like-btn" onclick="processLike('${doc.id}')">
+                            ❤️ ${data.likes || 0}
+                        </button>
+                        ${data.userId && data.userId !== auth.currentUser?.uid ? 
+                            `<button class="dm-btn" onclick="openDmFromPost('${data.userId}', '${data.name || 'Пользователь'}')">
+                                💬 Написать
+                            </button>` : ''}
+                        <span style="color: #666; font-size: 12px;">${data.userEmail || ''}</span>
+                    </div>
+                `;
+                
+                feed.appendChild(postDiv);
+            });
+        }, (error) => {
+            console.error('Ошибка загрузки постов:', error);
+            feed.innerHTML = '<div class="error-message">Ошибка загрузки постов</div>';
+        });
+    } catch (error) {
+        console.error('Ошибка при настройке слушателя постов:', error);
+    }
     
-    // Можно добавить кнопку для входа через redirect
-    const redirectBtn = document.createElement('button');
-    redirectBtn.textContent = 'Войти через Google (redirect)';
-    redirectBtn.style.marginTop = '10px';
-    redirectBtn.style.background = '#28a745';
-    redirectBtn.onclick = loginWithRedirect;
-    document.querySelector('.container').appendChild(redirectBtn);
+    // Закрытие модального окна по клику вне его
+    window.onclick = function(event) {
+        if (event.target === dmModal) {
+            closeDmModal();
+        }
+    };
 </script>
 </body>
 </html>
