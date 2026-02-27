@@ -337,6 +337,15 @@
             background: #f8d7da;
             border-radius: 8px;
         }
+        .success-message {
+            color: #28a745;
+            font-size: 14px;
+            margin: 10px 0;
+            text-align: center;
+            padding: 10px;
+            background: #d4edda;
+            border-radius: 8px;
+        }
         .retry-btn {
             background: #ffc107;
             color: #333;
@@ -344,6 +353,11 @@
         }
         .retry-btn:hover {
             background: #e0a800;
+        }
+        .info-text {
+            color: #666;
+            font-size: 12px;
+            margin: 5px 0;
         }
     </style>
 </head>
@@ -375,6 +389,7 @@
             <div id="dmList" class="dm-list">
                 <div class="loading">Загрузка диалогов...</div>
             </div>
+            <div id="dmError" class="error-message" style="display: none;"></div>
             <button id="retryLoadDmBtn" class="retry-btn" style="display: none;">🔄 Повторить загрузку</button>
         </div>
         
@@ -414,17 +429,20 @@
     <div class="dm-modal-content">
         <span class="dm-close" onclick="closeDmModal()">&times;</span>
         <h3 id="dmModalTitle">Личные сообщения</h3>
-        <div id="dmMessages" class="dm-messages"></div>
+        <div id="dmMessages" class="dm-messages">
+            <div class="loading">Загрузка сообщений...</div>
+        </div>
         <div class="dm-input-area">
             <input type="text" id="dmInput" placeholder="Введите сообщение..." autocomplete="off">
             <button id="sendMessageBtn">Отправить</button>
         </div>
+        <div id="dmChatError" class="error-message" style="display: none;"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
@@ -438,16 +456,26 @@
         measurementId: "G-FXJF6VKFVC"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    const storage = getStorage(app);
-    const provider = new GoogleAuthProvider();
-
-    // Настройка провайдера для выбора аккаунта
-    provider.setCustomParameters({
-        prompt: 'select_account'
-    });
+    // Инициализация Firebase с обработкой ошибок
+    let app, db, auth, storage, provider;
+    
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        storage = getStorage(app);
+        provider = new GoogleAuthProvider();
+        
+        // Настройка провайдера для выбора аккаунта
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        });
+        
+        console.log('Firebase инициализирован успешно');
+    } catch (error) {
+        console.error('Ошибка инициализации Firebase:', error);
+        alert('Ошибка инициализации Firebase. Проверьте конфигурацию.');
+    }
 
     // Элементы интерфейса
     const loginBtn = document.getElementById('loginBtn');
@@ -465,7 +493,9 @@
     const imagePreview = document.getElementById('imagePreview');
     const previewImg = document.getElementById('previewImg');
     const feed = document.getElementById('feed');
+    const dmError = document.getElementById('dmError');
     const retryLoadDmBtn = document.getElementById('retryLoadDmBtn');
+    const dmChatError = document.getElementById('dmChatError');
     
     // DM элементы
     const dmSection = document.getElementById('dmSection');
@@ -490,7 +520,6 @@
     let currentConversationId = null;
     let unsubscribeMessages = null;
     let unsubscribeConversations = null;
-    let loadError = null;
 
     // Предпросмотр изображения
     imageUpload.addEventListener('change', (e) => {
@@ -569,9 +598,11 @@
     // Вход через Google
     loginBtn.addEventListener('click', async () => {
         try {
-            await signInWithPopup(auth, provider);
+            const result = await signInWithPopup(auth, provider);
+            console.log('Вход выполнен:', result.user.email);
         } catch (error) {
             if (error.code !== 'auth/popup-closed-by-user') {
+                console.error('Ошибка входа:', error);
                 alert('Ошибка входа: ' + error.message);
             }
         }
@@ -638,6 +669,11 @@
         
         console.log('Загрузка диалогов для пользователя:', currentUserId);
         
+        // Скрываем ошибку при новой загрузке
+        dmError.style.display = 'none';
+        retryLoadDmBtn.style.display = 'none';
+        dmList.innerHTML = '<div class="loading">Загрузка диалогов...</div>';
+        
         const conversationsQuery = query(
             collection(db, "conversations"),
             where("participants", "array-contains", currentUserId),
@@ -653,12 +689,10 @@
             
             if (snapshot.empty) {
                 dmList.innerHTML = '<div class="loading">Нет диалогов. Начните общение!</div>';
-                retryLoadDmBtn.style.display = 'none';
                 return;
             }
             
             dmList.innerHTML = '';
-            retryLoadDmBtn.style.display = 'none';
             
             // Собираем все ID пользователей
             const userIds = new Set();
@@ -672,15 +706,21 @@
             });
             
             // Загружаем данные пользователей
-            const userPromises = Array.from(userIds).map(id => 
-                getDoc(doc(db, "users", id)).catch(() => null)
-            );
-            const userSnapshots = await Promise.all(userPromises);
+            const userPromises = Array.from(userIds).map(async (id) => {
+                try {
+                    const userDoc = await getDoc(doc(db, "users", id));
+                    return { id, data: userDoc.exists() ? userDoc.data() : null };
+                } catch (error) {
+                    console.error(`Ошибка загрузки пользователя ${id}:`, error);
+                    return { id, data: null };
+                }
+            });
             
+            const userResults = await Promise.all(userPromises);
             const userMap = {};
-            userSnapshots.forEach(snap => {
-                if (snap && snap.exists()) {
-                    userMap[snap.id] = snap.data();
+            userResults.forEach(({ id, data }) => {
+                if (data) {
+                    userMap[id] = data;
                 }
             });
             
@@ -714,15 +754,15 @@
             });
         }, (error) => {
             console.error('Ошибка загрузки диалогов:', error);
-            dmList.innerHTML = '<div class="error-message">Ошибка загрузки диалогов. Проверьте правила Firebase.</div>';
+            dmList.innerHTML = '';
+            dmError.style.display = 'block';
+            dmError.textContent = 'Ошибка загрузки диалогов: ' + error.message;
             retryLoadDmBtn.style.display = 'block';
         });
     }
 
     // Повторная загрузка диалогов
     retryLoadDmBtn.addEventListener('click', () => {
-        dmList.innerHTML = '<div class="loading">Загрузка диалогов...</div>';
-        retryLoadDmBtn.style.display = 'none';
         loadConversations();
     });
 
@@ -736,6 +776,8 @@
         
         dmModalTitle.textContent = `Чат с ${userName}`;
         dmModal.style.display = 'block';
+        dmMessages.innerHTML = '<div class="loading">Загрузка сообщений...</div>';
+        dmChatError.style.display = 'none';
         
         // Загружаем сообщения
         await loadMessages();
@@ -757,6 +799,7 @@
         
         unsubscribeMessages = onSnapshot(messagesQuery, async (snapshot) => {
             dmMessages.innerHTML = '';
+            dmChatError.style.display = 'none';
             
             if (snapshot.empty) {
                 dmMessages.innerHTML = '<div style="text-align: center; color: #666;">Нет сообщений. Напишите что-нибудь!</div>';
@@ -784,7 +827,9 @@
             await markMessagesAsRead();
         }, (error) => {
             console.error('Ошибка загрузки сообщений:', error);
-            dmMessages.innerHTML = '<div class="error-message">Ошибка загрузки сообщений</div>';
+            dmMessages.innerHTML = '';
+            dmChatError.style.display = 'block';
+            dmChatError.textContent = 'Ошибка загрузки сообщений: ' + error.message;
         });
     }
 
@@ -818,6 +863,8 @@
         const conversationId = currentConversationId || [currentUserId, currentChatUserId].sort().join('_');
         
         try {
+            console.log('Отправка сообщения:', { text, to: currentChatUserId });
+            
             // Сохраняем сообщение
             const messageRef = await addDoc(collection(db, "messages", conversationId, "chat"), {
                 senderId: currentUserId,
@@ -827,7 +874,7 @@
                 read: false
             });
             
-            console.log('Сообщение отправлено:', messageRef.id);
+            console.log('Сообщение отправлено, ID:', messageRef.id);
             
             // Обновляем диалог
             const convRef = doc(db, "conversations", conversationId);
@@ -949,44 +996,4 @@
             return;
         }
 
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Отправка...';
-
-        try {
-            let imageUrl = null;
-            
-            const imageFile = imageUpload.files[0];
-            if (imageFile) {
-                const storageRef = ref(storage, `images/${Date.now()}_${imageFile.name}`);
-                await uploadBytes(storageRef, imageFile);
-                imageUrl = await getDownloadURL(storageRef);
-            }
-
-            await addDoc(collection(db, "requests"), {
-                name: name,
-                message: message,
-                imageUrl: imageUrl,
-                userId: auth.currentUser.uid,
-                userEmail: auth.currentUser.email,
-                likes: 0,
-                timestamp: serverTimestamp()
-            });
-
-            nameInput.value = '';
-            messageInput.value = '';
-            imageUpload.value = '';
-            imagePreview.style.display = 'none';
-            
-            alert('Вопрос успешно отправлен!');
-            
-        } catch (e) { 
-            console.error('Ошибка:', e);
-            alert('Ошибка отправки вопроса: ' + e.message); 
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = '📤 Отправить вопрос';
-        }
-    });
-
-    // Лайки
-    window
+       
