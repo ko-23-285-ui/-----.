@@ -319,6 +319,11 @@
             font-size: 10px;
             margin-left: 5px;
         }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
     </style>
 </head>
 
@@ -345,7 +350,9 @@
         
         <!-- Список диалогов -->
         <div id="dmListContainer">
-            <div id="dmList" class="dm-list"></div>
+            <div id="dmList" class="dm-list">
+                <div class="loading">Загрузка диалогов...</div>
+            </div>
         </div>
         
         <!-- Форма нового сообщения -->
@@ -394,7 +401,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, getDoc, setDoc, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
@@ -450,8 +457,9 @@
     let currentChatUserId = null;
     let currentChatUserName = null;
     let allUsers = [];
-    let conversations = {};
-    let unreadCounts = {};
+    let currentConversationId = null;
+    let unsubscribeMessages = null;
+    let unsubscribeConversations = null;
 
     // Предпросмотр изображения
     imageUpload.addEventListener('change', (e) => {
@@ -484,8 +492,10 @@
                 nameInput.value = user.displayName || 'Пользователь';
             }
             
+            // Сохраняем пользователя в базу
+            await saveUserToFirestore(user);
             await loadAllUsers();
-            await loadConversations(user.uid);
+            await loadConversations();
         } else {
             loginBtn.style.display = 'block';
             logoutBtn.style.display = 'none';
@@ -493,8 +503,29 @@
             formSection.style.display = 'none';
             guestMessage.style.display = 'block';
             dmSection.style.display = 'none';
+            
+            // Отписываемся от слушателей
+            if (unsubscribeConversations) {
+                unsubscribeConversations();
+            }
         }
     });
+
+    // Сохранение пользователя в Firestore
+    async function saveUserToFirestore(user) {
+        try {
+            const userRef = doc(db, "users", user.uid);
+            await setDoc(userRef, {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || 'Пользователь',
+                photoURL: user.photoURL,
+                lastSeen: serverTimestamp()
+            }, { merge: true });
+        } catch (error) {
+            console.error('Ошибка сохранения пользователя:', error);
+        }
+    }
 
     loginBtn.addEventListener('click', async () => {
         try {
@@ -518,17 +549,6 @@
             const usersQuery = query(collection(db, "users"));
             const usersSnapshot = await getDocs(usersQuery);
             
-            // Сохраняем текущего пользователя
-            const currentUser = auth.currentUser;
-            if (currentUser) {
-                await setDoc(doc(db, "users", currentUser.uid), {
-                    email: currentUser.email,
-                    displayName: currentUser.displayName || 'Пользователь',
-                    photoURL: currentUser.photoURL,
-                    lastSeen: serverTimestamp()
-                }, { merge: true });
-            }
-            
             allUsers = [];
             dmRecipient.innerHTML = '<option value="">Выберите получателя</option>';
             
@@ -548,122 +568,173 @@
     }
 
     // Загрузка диалогов
-    function loadConversations(userId) {
+    function loadConversations() {
+        const currentUserId = auth.currentUser?.uid;
+        if (!currentUserId) return;
+        
+        // Используем коллекцию conversations с правильной структурой
         const conversationsQuery = query(
             collection(db, "conversations"),
-            where("participants", "array-contains", userId)
+            where("participants", "array-contains", currentUserId),
+            orderBy("lastMessageTime", "desc")
         );
         
-        return onSnapshot(conversationsQuery, (snapshot) => {
+        if (unsubscribeConversations) {
+            unsubscribeConversations();
+        }
+        
+        unsubscribeConversations = onSnapshot(conversationsQuery, async (snapshot) => {
+            if (snapshot.empty) {
+                dmList.innerHTML = '<div class="loading">Нет диалогов. Начните общение!</div>';
+                return;
+            }
+            
             dmList.innerHTML = '';
             
+            // Собираем все ID пользователей для загрузки их данных
+            const userIds = new Set();
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                data.participants.forEach(id => {
+                    if (id !== currentUserId) {
+                        userIds.add(id);
+                    }
+                });
+            });
+            
+            // Загружаем данные пользователей
+            const userPromises = Array.from(userIds).map(id => 
+                getDoc(doc(db, "users", id))
+            );
+            const userSnapshots = await Promise.all(userPromises);
+            
+            const userMap = {};
+            userSnapshots.forEach(snap => {
+                if (snap.exists()) {
+                    userMap[snap.id] = snap.data();
+                }
+            });
+            
+            // Отображаем диалоги
             snapshot.forEach((doc) => {
                 const convData = doc.data();
-                const otherUserId = convData.participants.find(id => id !== userId);
-                const otherUser = allUsers.find(u => u.uid === otherUserId) || { displayName: 'Пользователь', email: '' };
+                const otherUserId = convData.participants.find(id => id !== currentUserId);
+                const otherUser = userMap[otherUserId] || { displayName: 'Пользователь', email: '' };
                 
-                conversations[doc.id] = {
-                    id: doc.id,
-                    otherUserId,
-                    otherUserName: otherUser.displayName || otherUser.email,
-                    lastMessage: convData.lastMessage || '',
-                    lastMessageTime: convData.lastMessageTime,
-                    unreadCount: convData[`unread_${userId}`] || 0
-                };
+                const timeStr = convData.lastMessageTime?.toDate ? 
+                    convData.lastMessageTime.toDate().toLocaleString() : '';
                 
-                const conv = conversations[doc.id];
-                const timeStr = conv.lastMessageTime?.toDate ? 
-                    conv.lastMessageTime.toDate().toLocaleString() : '';
+                const unreadCount = convData[`unread_${currentUserId}`] || 0;
                 
                 const dmItem = document.createElement('div');
-                dmItem.className = `dm-item ${conv.unreadCount > 0 ? 'unread' : ''}`;
-                dmItem.onclick = () => openChat(conv.otherUserId, conv.otherUserName);
+                dmItem.className = `dm-item ${unreadCount > 0 ? 'unread' : ''}`;
+                dmItem.onclick = () => openChat(otherUserId, otherUser.displayName || otherUser.email);
                 
                 dmItem.innerHTML = `
                     <div class="dm-header">
-                        <span class="dm-sender">${conv.otherUserName}</span>
+                        <span class="dm-sender">${otherUser.displayName || otherUser.email}</span>
                         <span class="dm-time">${timeStr}</span>
                     </div>
                     <div class="dm-preview">
-                        ${conv.lastMessage || 'Нет сообщений'}
-                        ${conv.unreadCount > 0 ? `<span class="unread-badge">${conv.unreadCount}</span>` : ''}
+                        ${convData.lastMessage || 'Нет сообщений'}
+                        ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
                     </div>
                 `;
                 
                 dmList.appendChild(dmItem);
             });
+        }, (error) => {
+            console.error('Ошибка загрузки диалогов:', error);
+            dmList.innerHTML = '<div class="loading">Ошибка загрузки диалогов</div>';
         });
     }
 
     // Открыть чат
     async function openChat(userId, userName) {
+        if (!auth.currentUser) return;
+        
         currentChatUserId = userId;
         currentChatUserName = userName;
+        currentConversationId = [auth.currentUser.uid, userId].sort().join('_');
+        
         dmModalTitle.textContent = `Чат с ${userName}`;
         dmModal.style.display = 'block';
         
         // Загружаем сообщения
-        await loadMessages(userId);
+        await loadMessages();
     }
 
     // Загрузка сообщений
-    async function loadMessages(otherUserId) {
-        const currentUserId = auth.currentUser?.uid;
-        if (!currentUserId || !otherUserId) return;
+    async function loadMessages() {
+        if (!auth.currentUser || !currentChatUserId || !currentConversationId) return;
         
-        // Находим или создаем conversationId
-        const conversationId = [currentUserId, otherUserId].sort().join('_');
+        // Отписываемся от предыдущего слушателя
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+        }
         
         const messagesQuery = query(
-            collection(db, "messages", conversationId, "chat"),
-            orderBy("timestamp", "asc")
+            collection(db, "messages", currentConversationId, "chat"),
+            orderBy("timestamp", "asc"),
+            limit(100)
         );
         
-        onSnapshot(messagesQuery, (snapshot) => {
+        unsubscribeMessages = onSnapshot(messagesQuery, async (snapshot) => {
             dmMessages.innerHTML = '';
             
-            snapshot.forEach((doc) => {
-                const msg = doc.data();
-                const messageClass = msg.senderId === currentUserId ? 'sent' : 'received';
-                const timeStr = msg.timestamp?.toDate ? 
-                    msg.timestamp.toDate().toLocaleString() : '';
-                
-                const messageEl = document.createElement('div');
-                messageEl.className = `dm-message ${messageClass}`;
-                messageEl.innerHTML = `
-                    <div>${msg.text}</div>
-                    <div class="dm-message-time">${timeStr}</div>
-                `;
-                
-                dmMessages.appendChild(messageEl);
-            });
+            if (snapshot.empty) {
+                dmMessages.innerHTML = '<div style="text-align: center; color: #666;">Нет сообщений. Напишите что-нибудь!</div>';
+            } else {
+                snapshot.forEach((doc) => {
+                    const msg = doc.data();
+                    const messageClass = msg.senderId === auth.currentUser?.uid ? 'sent' : 'received';
+                    const timeStr = msg.timestamp?.toDate ? 
+                        msg.timestamp.toDate().toLocaleString() : '';
+                    
+                    const messageEl = document.createElement('div');
+                    messageEl.className = `dm-message ${messageClass}`;
+                    messageEl.innerHTML = `
+                        <div>${msg.text}</div>
+                        <div class="dm-message-time">${timeStr}</div>
+                    `;
+                    
+                    dmMessages.appendChild(messageEl);
+                });
+            }
             
             // Прокрутка вниз
             dmMessages.scrollTop = dmMessages.scrollHeight;
+            
+            // Отмечаем сообщения как прочитанные
+            await markMessagesAsRead();
+        }, (error) => {
+            console.error('Ошибка загрузки сообщений:', error);
+            dmMessages.innerHTML = '<div style="text-align: center; color: #666;">Ошибка загрузки сообщений</div>';
         });
-        
-        // Отмечаем сообщения как прочитанные
-        await markMessagesAsRead(conversationId, otherUserId);
     }
 
     // Отметить сообщения как прочитанные
-    async function markMessagesAsRead(conversationId, otherUserId) {
-        const currentUserId = auth.currentUser?.uid;
-        if (!currentUserId) return;
+    async function markMessagesAsRead() {
+        if (!auth.currentUser || !currentConversationId) return;
         
-        const convRef = doc(db, "conversations", conversationId);
-        await updateDoc(convRef, {
-            [`unread_${currentUserId}`]: 0
-        });
+        const convRef = doc(db, "conversations", currentConversationId);
+        
+        try {
+            await updateDoc(convRef, {
+                [`unread_${auth.currentUser.uid}`]: 0
+            });
+        } catch (error) {
+            console.error('Ошибка при отметке прочитанных:', error);
+        }
     }
 
     // Отправить сообщение
     async function sendMessage() {
         const text = dmInput.value.trim();
-        if (!text || !currentChatUserId) return;
+        if (!text || !currentChatUserId || !auth.currentUser) return;
         
-        const currentUserId = auth.currentUser?.uid;
-        const conversationId = [currentUserId, currentChatUserId].sort().join('_');
+        const currentUserId = auth.currentUser.uid;
+        const conversationId = currentConversationId || [currentUserId, currentChatUserId].sort().join('_');
         
         try {
             // Сохраняем сообщение
@@ -675,7 +746,7 @@
                 read: false
             });
             
-            // Обновляем информацию о диалоге
+            // Обновляем диалог
             const convRef = doc(db, "conversations", conversationId);
             const convDoc = await getDoc(convRef);
             
@@ -697,6 +768,7 @@
             }
             
             dmInput.value = '';
+            
         } catch (error) {
             console.error('Ошибка отправки:', error);
             alert('Не удалось отправить сообщение');
@@ -716,13 +788,17 @@
         const recipient = allUsers.find(u => u.uid === recipientId);
         currentChatUserId = recipientId;
         currentChatUserName = recipient?.displayName || recipient?.email || 'Пользователь';
+        currentConversationId = [auth.currentUser.uid, recipientId].sort().join('_');
         
+        dmInput.value = message;
         await sendMessage();
         
         dmMessage.value = '';
         dmRecipient.value = '';
-        newDmTab.click();
+        
+        // Переключаемся на вкладку с диалогами и открываем чат
         dmListTab.click();
+        openChat(currentChatUserId, currentChatUserName);
     });
 
     // Переключение вкладок DM
@@ -743,13 +819,16 @@
     // Закрыть модальное окно
     window.closeDmModal = function() {
         dmModal.style.display = 'none';
-        currentChatUserId = null;
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+        }
     };
 
     // Отправка сообщения из модального окна
     sendMessageBtn.addEventListener('click', sendMessage);
     dmInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             sendMessage();
         }
     });
@@ -799,7 +878,7 @@
             
         } catch (e) { 
             console.error('Ошибка:', e);
-            alert('Ошибка безопасности. Данные отключены сервером.'); 
+            alert('Ошибка отправки вопроса'); 
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = '📤 Отправить вопрос';
@@ -830,24 +909,33 @@
             alert('Необходимо войти в систему');
             return;
         }
-        openChat(userId, userName);
+        if (userId && userId !== auth.currentUser.uid) {
+            openChat(userId, userName);
+        }
     };
 
     // Загрузка постов
-    const q = query(collection(db, "requests"), orderBy("timestamp", "desc"));
-    onSnapshot(q, (snapshot) => {
+    const postsQuery = query(collection(db, "requests"), orderBy("timestamp", "desc"));
+    onSnapshot(postsQuery, (snapshot) => {
         feed.innerHTML = "";
+        
+        if (snapshot.empty) {
+            feed.innerHTML = '<div class="loading">Нет вопросов. Будьте первым!</div>';
+            return;
+        }
+        
         snapshot.forEach((doc) => {
             const data = doc.data();
             
             let timeStr = 'Только что';
             if (data.timestamp?.toDate) {
                 const date = data.timestamp.toDate();
-                timeStr = date.toLocaleTimeString() + ' ' + date.toLocaleDateString();
+                timeStr = date.toLocaleString();
             }
 
-            const postHTML = `
-            <div class="post" data-id="${doc.id}">
+            const postDiv = document.createElement('div');
+            postDiv.className = 'post';
+            postDiv.innerHTML = `
                 <div class="post-header">
                     <span class="post-author" onclick="openDmFromPost('${data.userId || ''}', '${data.name || 'Пользователь'}')">${data.name || 'Аноним'}</span>
                     <span class="post-time">${timeStr}</span>
@@ -864,10 +952,9 @@
                         </button>` : ''}
                     <span style="color: #666; font-size: 12px;">${data.userEmail || ''}</span>
                 </div>
-            </div>
             `;
             
-            feed.innerHTML += postHTML;
+            feed.appendChild(postDiv);
         });
     });
     
