@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Монитор группы</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 60px;
+      color: #1a2332;
+    }
+
+    .header {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0 16px;
+      margin-bottom: 8px;
+    }
+    .page-title {
+      font-size: 1.35rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      letter-spacing: -0.3px;
+    }
+    .page-title::before {
+      content: '';
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34,197,94,0.22);
+      animation: blink 2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    #logoutBtn {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px 6px 6px;
+      border-radius: 30px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      cursor: pointer;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #64748b;
+      transition: all 0.16s;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    }
+    #logoutBtn:hover { border-color: #fca5a5; color: #ef4444; }
+    #logoutBtn img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+    #headerAvatarLetter {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 900;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.07);
+      border: 1px solid #e2e8f0;
+      padding: 24px 26px;
+      width: 100%;
+      max-width: 460px;
+      margin-bottom: 16px;
+      animation: up 0.38s ease both;
+    }
+    @keyframes up { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+
+    .card-title    { font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
+    .card-subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 20px; }
+    .card-subtitle span { font-weight: 700; color: #1a2332; }
+
+    #loginScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 36px 26px 28px;
+    }
+    .login-icon  { font-size: 2.8rem; margin-bottom: 14px; }
+    .login-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+    .login-sub   { font-size: 0.84rem; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+
+    .google-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 24px;
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #1a2332;
+      cursor: pointer;
+      transition: all 0.18s;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    }
+    .google-btn:hover {
+      border-color: #4285f4;
+      box-shadow: 0 4px 16px rgba(66,133,244,0.18);
+      transform: translateY(-2px);
+    }
+    .google-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    #profileCard { display: none; }
+
+    #statusBtns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+    .status-btn {
+      padding: 11px 8px;
+      border: 2px solid transparent;
+      border-radius: 11px;
+      background: color-mix(in srgb, var(--c) 13%, #fff);
+      color: color-mix(in srgb, var(--c) 80%, #1a2332);
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.16s;
+    }
+    .status-btn:hover {
+      background: color-mix(in srgb, var(--c) 22%, #fff);
+      border-color: var(--c);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--c) 28%, transparent);
+    }
+    .status-btn.active {
+      background: var(--c);
+      color: #fff;
+      border-color: var(--c);
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 40%, transparent);
+    }
+
+    .divider { height: 1px; background: #e2e8f0; margin: 16px 0; }
+    #groupList { display: flex; flex-direction: column; gap: 9px; }
+
+    .member-card {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #fafbfc;
+      transition: transform 0.18s, box-shadow 0.18s;
+      animation: up 0.35s ease both;
+    }
+    .member-card:hover { transform: translateX(4px); box-shadow: 0 3px 12px rgba(0,0,0,0.06); }
+
+    .member-avatar {
+      width: 42px; height: 42px;
+      border-radius: 11px;
+      color: #fff;
+      font-weight: 900;
+      font-size: 1.05rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .member-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .member-name   { font-size: 0.92rem; font-weight: 800; }
+    .member-status { font-size: 0.8rem; color: #64748b; }
+    .member-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .empty { text-align: center; padding: 28px 0; color: #94a3b8; font-size: 0.88rem; }
+    .empty-icon { font-size: 1.8rem; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="page-title">Монитор группы</div>
+    <button id="logoutBtn" onclick="logout()">
+      <img id="headerAvatar" src="" alt="" style="display:none"/>
+      <div id="headerAvatarLetter"></div>
+      <span id="headerName"></span>
+      · Выйти
+    </button>
+  </div>
+
+  <div class="card">
+    <div id="loginScreen">
+      <div class="login-icon">👋</div>
+      <div class="login-title">Добро пожаловать!</div>
+      <div class="login-sub">Войдите через Google, чтобы<br>добавить свой статус в группу</div>
+      <button class="google-btn" onclick="loginWithGoogle()">
+        <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#EA4335" d="M24 9.5c3.1 0 5.8 1.1 7.9 2.9l5.9-5.9C34.4 3.4 29.5 1.5 24 1.5 14.8 1.5 7 7.1 3.7 14.9l6.9 5.3C12.3 14 17.6 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.4c-.5 2.8-2.1 5.2-4.5 6.8l7 5.4c4.1-3.8 6.2-9.4 6.2-16.2z"/>
+          <path fill="#FBBC05" d="M10.6 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7L3.4 14C2.2 16.6 1.5 19.2 1.5 24s.7 7.4 1.9 10l7.2-5.3z"/>
+          <path fill="#34A853" d="M24 46.5c5.5 0 10.1-1.8 13.4-4.9l-7-5.4c-1.8 1.2-4.1 1.9-6.4 1.9-6.3 0-11.7-4.3-13.5-10l-6.9 5.3C7 39.9 14.8 46.5 24 46.5z"/>
+        </svg>
+        Войти через Google
+      </button>
+    </div>
+
+    <div id="profileCard">
+      <div class="card-title">Мой профиль</div>
+      <div class="card-subtitle">Вы зашли как: <span id="myName">...</span></div>
+      <div id="statusBtns"></div>
+    </div>
+  </div>
+
+  <div class="card" style="animation-delay:0.08s">
+    <div class="card-title">Монитор группы</div>
+    <div class="divider"></div>
+    <div id="groupList">
+      <div class="empty"><div class="empty-icon">⏳</div>Загрузка...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL = 'https://tgfliwhjbzxlgstzedr i.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRnZmxpd2hqYnp4bGdzdHplZHJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NjE1NjQsImV4cCI6MjA4ODMzNzU2NH0.pPi3AzHsrT7NJyg9ihL5iPbq3O31ZJzGSV-cBbQLmIg';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const STATUSES = [
+      { label: '📚 Учусь',   color: '#22c55e' },
+      { label: '☕ Кофе',    color: '#f59e0b' },
+      { label: '🎮 В игре',  color: '#3b82f6' },
+      { label: '🏠 Дома',    color: '#6b7280' },
+      { label: '💼 Работаю', color: '#8b5cf6' },
+      { label: '😴 Сплю',    color: '#ec4899' },
+    ];
+
+    let currentUser = null;
+
+    window.loginWithGoogle = async function() {
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+      });
+    };
+
+    window.logout = async function() {
+      await supabase.auth.signOut();
+    };
+
+    window.changeStatus = async function(text, color, btn) {
+      if (!currentUser) return;
+      document.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: text, color: color })
+        .eq('id', currentUser.id);
+      if (error) { alert('Ошибка! Проверьте RLS политики.'); console.error(error); }
+      else fetchGroup();
+    };
+
+    function showLogin() {
+      document.getElementById('loginScreen').style.display  = 'flex';
+      document.getElementById('profileCard').style.display  = 'none';
+      document.getElementById('logoutBtn').style.display    = 'none';
+    }
+
+    function showProfile(user) {
+      document.getElementById('loginScreen').style.display  = 'none';
+      document.getElementById('profileCard').style.display  = 'block';
+      document.getElementById('logoutBtn').style.display    = 'flex';
+      const name   = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь';
+      const avatar = user.user_metadata?.avatar_url;
+      document.getElementById('headerName').textContent = name;
+      if (avatar) {
+        document.getElementById('headerAvatar').src = avatar;
+        document.getElementById('headerAvatar').style.display = 'block';
+        document.getElementById('headerAvatarLetter').style.display = 'none';
+      } else {
+        document.getElementById('headerAvatarLetter').textContent = name[0].toUpperCase();
+        document.getElementById('headerAvatarLetter').style.display = 'flex';
+        document.getElementById('headerAvatar').style.display = 'none';
+      }
+      renderButtons();
+      fetchGroup();
+    }
+
+    async function fetchGroup() {
+      const { data, error } = await supabase
+        .from('profiles').select('*').order('username', { ascending: true });
+      if (error) return console.error(error);
+      const list = document.getElementById('groupList');
+      if (!data || data.length === 0) {
+        list.innerHTML = '<div class="empty"><div class="empty-icon">👥</div>Пока никого нет</div>';
+        return;
+      }
+      list.innerHTML = data.map(u => `
+        <div class="member-card">
+          <div class="member-avatar" style="background:${u.color||'#6b7280'}">${(u.username||'?')[0].toUpperCase()}</div>
+          <div class="member-info">
+            <strong class="member-name">${esc(u.username||'Аноним')}</strong>
+            <span class="member-status">${esc(u.status||'Статус не задан')}</span>
+          </div>
+          <div class="member-dot" style="background:${u.color||'#ccc'};box-shadow:0 0 0 3px ${u.color||'#ccc'}33"></div>
+        </div>`).join('');
+      if (currentUser) {
+        const me = data.find(u => u.id === currentUser.id);
+        if (me) document.getElementById('myName').textContent = me.username || 'Пользователь';
+      }
+    }
+
+    async function upsertProfile(user) {
+      const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Пользователь';
+      await supabase.from('profiles').upsert(
+        { id: user.id, username: name, status: '👋 Только зашёл', color: '#6b7280' },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function renderButtons() {
+      document.getElementById('statusBtns').innerHTML = STATUSES.map(s => `
+        <button class="status-btn" style="--c:${s.color}" onclick="changeStatus('${s.label}','${s.color}',this)">
+          ${s.label}
+        </button>`).join('');
+    }
+
+    supabase.channel('profiles-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchGroup)
+      .subscribe();
+
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        currentUser = session.user;
+        await upsertProfile(currentUser);
+        showProfile(currentUser);
+      } else {
+        currentUser = null;
+        showLogin();
+        fetchGroup();
+      }
+    });
+
+    fetchGroup();
+    setInterval(fetchGroup, 5000);
+  </script>
+
+</body>
+</html>
